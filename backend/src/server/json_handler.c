@@ -26,34 +26,46 @@ cJSON* json_execution_result_to_json(const ExecutionResult* res) {
     return root;
 }
 
-bool json_parse_file_execute_request(const char* json_str, char* path, char* operation, char* mode, char* content, size_t* read_size) {
+bool json_parse_file_execute_request(const char* json_str, char* path, char* operation, char* mode, char* content, size_t* read_size, bool* user_confirmed) {
     if (!json_str) return false;
     cJSON* root = cJSON_Parse(json_str);
-    if (!root) return false;
+    if (!root || !cJSON_IsObject(root)) {
+        cJSON_Delete(root);
+        return false;
+    }
 
     cJSON* p = cJSON_GetObjectItem(root, "path");
-    if (cJSON_IsString(p) && path) {
+    cJSON* op = cJSON_GetObjectItem(root, "operation");
+    if (!cJSON_IsString(p) || !cJSON_IsString(op) || strlen(p->valuestring) == 0 || strlen(op->valuestring) == 0) {
+        cJSON_Delete(root);
+        return false;
+    }
+    if (path && strlen(p->valuestring) < MAX_PATH_LENGTH) {
         strncpy(path, p->valuestring, MAX_PATH_LENGTH - 1);
     }
 
-    cJSON* op = cJSON_GetObjectItem(root, "operation");
-    if (cJSON_IsString(op) && operation) {
+    if (operation && strlen(op->valuestring) < 64) {
         strncpy(operation, op->valuestring, 63);
     }
 
     cJSON* m = cJSON_GetObjectItem(root, "mode");
-    if (cJSON_IsString(m) && mode) {
+    if (cJSON_IsString(m) && mode && strlen(m->valuestring) < 16) {
         strncpy(mode, m->valuestring, 15);
     }
 
     cJSON* c = cJSON_GetObjectItem(root, "content");
-    if (cJSON_IsString(c) && content) {
+    if (cJSON_IsString(c) && content && strlen(c->valuestring) < MAX_BUFFER_SIZE) {
         strncpy(content, c->valuestring, MAX_BUFFER_SIZE - 1);
     }
 
     cJSON* sz = cJSON_GetObjectItem(root, "read_size");
-    if (cJSON_IsNumber(sz) && read_size) {
+    if (cJSON_IsNumber(sz) && sz->valueint >= 1 && sz->valueint <= MAX_BUFFER_SIZE && read_size) {
         *read_size = (size_t)sz->valueint;
+    }
+
+    cJSON* confirmed = cJSON_GetObjectItem(root, "user_confirmed");
+    if (cJSON_IsBool(confirmed) && user_confirmed) {
+        *user_confirmed = cJSON_IsTrue(confirmed);
     }
 
     cJSON_Delete(root);
@@ -63,20 +75,27 @@ bool json_parse_file_execute_request(const char* json_str, char* path, char* ope
 bool json_parse_process_execute_request(const char* json_str, char* exec_path, char* arguments, uint32_t* timeout_ms) {
     if (!json_str) return false;
     cJSON* root = cJSON_Parse(json_str);
-    if (!root) return false;
+    if (!root || !cJSON_IsObject(root)) {
+        cJSON_Delete(root);
+        return false;
+    }
 
     cJSON* ep = cJSON_GetObjectItem(root, "executable_path");
-    if (cJSON_IsString(ep) && exec_path) {
+    if (!cJSON_IsString(ep) || strlen(ep->valuestring) == 0 || strlen(ep->valuestring) >= MAX_PATH_LENGTH) {
+        cJSON_Delete(root);
+        return false;
+    }
+    if (exec_path) {
         strncpy(exec_path, ep->valuestring, MAX_PATH_LENGTH - 1);
     }
 
     cJSON* args = cJSON_GetObjectItem(root, "arguments");
-    if (cJSON_IsString(args) && arguments) {
+    if (cJSON_IsString(args) && arguments && strlen(args->valuestring) < MAX_BUFFER_SIZE) {
         strncpy(arguments, args->valuestring, MAX_BUFFER_SIZE - 1);
     }
 
     cJSON* t = cJSON_GetObjectItem(root, "timeout_ms");
-    if (cJSON_IsNumber(t) && timeout_ms) {
+    if (cJSON_IsNumber(t) && t->valueint >= 100 && t->valueint <= 30000 && timeout_ms) {
         *timeout_ms = (uint32_t)t->valueint;
     }
 

@@ -2,6 +2,7 @@
 const App = {
   currentSection: 'overview',
   activeExecution: null,
+  platform: 'unknown',
 
   init() {
     this.bindNavigation();
@@ -30,6 +31,7 @@ const App = {
     try {
       const res = await API.getHealth();
       if (res.status) {
+        this.platform = res.platform || 'unknown';
         dot.className = 'pulse-dot';
         label.textContent = `Online (${res.platform})`;
       } else {
@@ -278,6 +280,12 @@ const App = {
     document.getElementById('fileOpForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('btnExecuteFile');
+      const operation = opSelect.value;
+      const mode = document.getElementById('fileModeSelect').value;
+      const modifiesFile = operation === 'write' || (operation === 'open' && mode !== 'r');
+      if (modifiesFile && !window.confirm('This operation can modify the selected file. Continue?')) {
+        return;
+      }
       btn.disabled = true;
       btn.innerHTML = `<div class="spinner"></div> Executing kernel API...`;
 
@@ -285,9 +293,10 @@ const App = {
         const payload = {
           operation: opSelect.value,
           path: document.getElementById('filePathInput').value,
-          mode: document.getElementById('fileModeSelect').value,
+          mode: mode,
           content: document.getElementById('fileContentInput').value,
-          read_size: parseInt(document.getElementById('fileReadSizeInput').value, 10)
+          read_size: parseInt(document.getElementById('fileReadSizeInput').value, 10),
+          user_confirmed: modifiesFile
         };
         const res = await API.executeFileOp(payload);
         this.activeExecution = res;
@@ -373,8 +382,9 @@ const App = {
       btn.innerHTML = `<div class="spinner"></div> Spawning child process...`;
 
       let targetBinary = '';
-      if (preset.value === 'helper') targetBinary = 'build/bin/test_child.exe';
-      else if (preset.value === 'target') targetBinary = 'build/bin/test_executable.exe';
+      const executableSuffix = this.platform === 'windows' ? '.exe' : '';
+      if (preset.value === 'helper') targetBinary = `build/bin/test_child${executableSuffix}`;
+      else if (preset.value === 'target') targetBinary = `build/bin/test_executable${executableSuffix}`;
       else if (preset.value === 'missing') targetBinary = 'missing_test';
       else targetBinary = pathInput.value;
 

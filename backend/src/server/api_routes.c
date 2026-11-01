@@ -86,8 +86,26 @@ void handle_api_file_execute(const HttpRequest* req, HttpResponse* res) {
     char mode[16] = "r";
     char content[MAX_BUFFER_SIZE] = {0};
     size_t read_size = 512;
+    bool user_confirmed = false;
 
-    json_parse_file_execute_request(req->body, path, operation, mode, content, &read_size);
+    if (!json_parse_file_execute_request(req->body, path, operation, mode, content, &read_size, &user_confirmed)) {
+        http_response_error(res, 400, "Invalid file operation request");
+        return;
+    }
+
+    if ((strcmp(operation, "open") == 0 && strcmp(mode, "r") != 0 && strcmp(mode, "w") != 0 && strcmp(mode, "rw") != 0) ||
+        (strcmp(operation, "write") == 0 && content[0] == '\0') ||
+        (strcmp(operation, "read") == 0 && read_size == 0) ||
+        ((strcmp(operation, "write") == 0 || (strcmp(operation, "open") == 0 && strcmp(mode, "w") == 0)) && !user_confirmed)) {
+        http_response_error(res, 400, "Unsupported file operation parameters");
+        return;
+    }
+
+    if (strcmp(operation, "readonly_test") == 0 &&
+        strncmp(path, g_app_config.temp_dir, strlen(g_app_config.temp_dir)) != 0) {
+        http_response_error(res, 400, "Read-only tests are restricted to the application temporary directory");
+        return;
+    }
 
     ExecutionResult result;
     memset(&result, 0, sizeof(result));
@@ -109,7 +127,10 @@ void handle_api_file_execute(const HttpRequest* req, HttpResponse* res) {
         return;
     }
 
-    database_insert_execution(&result);
+    if (!database_insert_execution(&result)) {
+        http_response_error(res, 500, "Execution completed but could not be persisted");
+        return;
+    }
 
     cJSON* json = json_execution_result_to_json(&result);
     char* rendered = cJSON_PrintUnformatted(json);
@@ -123,7 +144,10 @@ void handle_api_process_execute(const HttpRequest* req, HttpResponse* res) {
     char arguments[MAX_BUFFER_SIZE] = {0};
     uint32_t timeout_ms = 5000;
 
-    json_parse_process_execute_request(req->body, exec_path, arguments, &timeout_ms);
+    if (!json_parse_process_execute_request(req->body, exec_path, arguments, &timeout_ms)) {
+        http_response_error(res, 400, "Invalid process execution request");
+        return;
+    }
 
     ExecutionResult result;
     if (strcmp(exec_path, "missing_test") == 0) {
@@ -132,7 +156,10 @@ void handle_api_process_execute(const HttpRequest* req, HttpResponse* res) {
         result = syscall_execute_process(exec_path, arguments, timeout_ms);
     }
 
-    database_insert_execution(&result);
+    if (!database_insert_execution(&result)) {
+        http_response_error(res, 500, "Execution completed but could not be persisted");
+        return;
+    }
 
     cJSON* json = json_execution_result_to_json(&result);
     char* rendered = cJSON_PrintUnformatted(json);
@@ -178,7 +205,10 @@ void handle_api_recovery_execute(const HttpRequest* req, HttpResponse* res) {
     char action[64] = "auto_heal";
     bool user_confirmed = false;
 
-    json_parse_recovery_request(req->body, execution_id, action, &user_confirmed);
+    if (!json_parse_recovery_request(req->body, execution_id, action, &user_confirmed) || execution_id[0] == '\0') {
+        http_response_error(res, 400, "Invalid recovery request");
+        return;
+    }
 
     RecoveryExecutionResult rec_res;
     bool ok = recovery_execute(execution_id, action, user_confirmed, &rec_res);
@@ -206,6 +236,15 @@ void handle_api_tests_run(const HttpRequest* req, HttpResponse* res) {
             strncpy(category, cat_item->valuestring, sizeof(category) - 1);
         }
         cJSON_Delete(root);
+    } else if (req->body_len > 0) {
+        http_response_error(res, 400, "Invalid test runner request");
+        return;
+    }
+
+    if (strcmp(category, "all") != 0 && strcmp(category, "file") != 0 &&
+        strcmp(category, "process") != 0 && strcmp(category, "error") != 0) {
+        http_response_error(res, 400, "Unsupported test category");
+        return;
     }
 
     TestSuiteSummary summary;

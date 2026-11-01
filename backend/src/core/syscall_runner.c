@@ -174,9 +174,10 @@ ExecutionResult syscall_execute_file_missing_test(const char* custom_path) {
                  g_app_config.temp_dir, (unsigned long)time(NULL));
     }
 
-    // Explicitly verify the test condition: ensure file does not exist
+    // Keep controlled failure tests inside the application sandbox.
     if (platform_file_exists(test_path)) {
-        platform_delete_file(test_path);
+        snprintf(test_path, sizeof(test_path), "%s/non_existent_file_%lx.dat",
+                 g_app_config.temp_dir, (unsigned long)platform_get_time_us());
     }
 
     return syscall_execute_file_open(test_path, "r");

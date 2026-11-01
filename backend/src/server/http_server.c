@@ -206,7 +206,6 @@ static void handle_client(socket_t client_sock) {
     if (strcmp(req.method, "OPTIONS") == 0) {
         const char* cors_hdr = 
             "HTTP/1.1 204 No Content\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
             "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
             "Access-Control-Allow-Headers: Content-Type\r\n"
             "Content-Length: 0\r\n\r\n";
@@ -246,7 +245,6 @@ static void handle_client(socket_t client_sock) {
         "HTTP/1.1 %d %s\r\n"
         "Content-Type: %s\r\n"
         "Content-Length: %zu\r\n"
-        "Access-Control-Allow-Origin: *\r\n"
         "Connection: close\r\n\r\n",
         res.status_code, status_text, res.content_type, res.body_len);
 
