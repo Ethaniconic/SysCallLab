@@ -1,0 +1,28 @@
+# SysCallLab Build and Runtime Artifacts
+build/
+bin/
+*.exe
+*.o
+*.obj
+*.pdb
+*.ilk
+*.a
+*.lib
+
+# Database & Runtime Data
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/*.csv
+data/syscall_temp/
+
+# IDE / Editor
+.vscode/
+.vs/
+.idea/
+*.swp
+*.bak
+
+# Temporary files
+*.zip
+*.log
