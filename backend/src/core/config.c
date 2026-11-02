@@ -21,7 +21,11 @@ void config_init_defaults(void) {
         strncpy(g_app_config.frontend_dir, "frontend", sizeof(g_app_config.frontend_dir) - 1);
         strncpy(g_app_config.db_path, "data/syscalllab.db", sizeof(g_app_config.db_path) - 1);
         strncpy(g_app_config.temp_dir, "data/syscall_temp", sizeof(g_app_config.temp_dir) - 1);
-        strncpy(g_app_config.helper_dir, "build/bin", sizeof(g_app_config.helper_dir) - 1);
+        if (platform_file_exists("bin/test_child.exe") || platform_file_exists("bin/test_child")) {
+            strncpy(g_app_config.helper_dir, "bin", sizeof(g_app_config.helper_dir) - 1);
+        } else {
+            strncpy(g_app_config.helper_dir, "build/bin", sizeof(g_app_config.helper_dir) - 1);
+        }
     } else if (platform_file_exists("../frontend/index.html")) {
         strncpy(g_app_config.frontend_dir, "../frontend", sizeof(g_app_config.frontend_dir) - 1);
         strncpy(g_app_config.db_path, "../data/syscalllab.db", sizeof(g_app_config.db_path) - 1);
